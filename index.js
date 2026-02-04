@@ -61,15 +61,21 @@ const createControls = () => {
                 </div>
             </div>
             <div class="right">
-                <select id="rate" aria-label="Prędkość odtwarzania">
-                    <option value="0.5">0.5×</option>
-                    <option value="0.75">0.75×</option>
-                    <option value="1" selected>1×</option>
-                    <option value="1.25">1.25×</option>
-                    <option value="1.5">1.5×</option>
-                    <option value="1.75">1.75×</option>
-                    <option value="2">2×</option>
-                </select>
+                <div class="ja-select" id="rate-select">
+                    <button type="button" class="ja-select-btn" id="rate" aria-label="Prędkość odtwarzania" aria-haspopup="listbox" aria-expanded="false" data-value="1">
+                        <span class="ja-select-label">1×</span>
+                        <span class="ja-select-arrow"><i class="fas fa-chevron-down"></i></span>
+                    </button>
+                    <div class="ja-select-list" id="rate-list" role="listbox">
+                        <div class="ja-select-item" data-value="0.5" role="option">0.5×</div>
+                        <div class="ja-select-item" data-value="0.75" role="option">0.75×</div>
+                        <div class="ja-select-item ja-selected" data-value="1" role="option">1×</div>
+                        <div class="ja-select-item" data-value="1.25" role="option">1.25×</div>
+                        <div class="ja-select-item" data-value="1.5" role="option">1.5×</div>
+                        <div class="ja-select-item" data-value="1.75" role="option">1.75×</div>
+                        <div class="ja-select-item" data-value="2" role="option">2×</div>
+                    </div>
+                </div>
                 <button id="pip" aria-label="Obraz w obrazie"><i class="fas fa-clone"></i></button>
                 <button id="fs" aria-label="Pełny ekran"><i class="fas fa-expand"></i></button>
             </div>
@@ -103,10 +109,12 @@ const createSidePanels = () => {
                 <button id="next-track" class="nav-btn" title="Next track">
                     <i class="fas fa-step-forward"></i>
                 </button>
-                <label class="autoplay-toggle">
-                    <input type="checkbox" id="autoplay-next" checked>
-                    <span>Auto-play next</span>
-                </label>
+                <div class="switch">
+                    <input id="autoplay-next" type="checkbox" />
+                    <label class="toggle" for="autoplay-next">
+                        <i></i>
+                    </label>
+                </div>
             </div>
         </div>
     </div>
@@ -519,9 +527,50 @@ function initializePlayer() {
         vol.style.setProperty('--volume', `${volumePercent}%`);
         volPercent.textContent = `${volumePercent}%`;
     });
-    rate.addEventListener('change', () => {
-        video.playbackRate = Number(rate.value);
-    });
+    const rateList = document.getElementById('rate-list');
+    const rateLabel = rate && rate.querySelector('.ja-select-label');
+    const rateItems = rateList && rateList.querySelectorAll('.ja-select-item');
+
+    function getRateValue() {
+        return rate && rate.getAttribute('data-value') ? Number(rate.getAttribute('data-value')) : 1;
+    }
+
+    function setRateValue(value) {
+        if (!rate || !rateLabel || !rateList) return;
+        rate.setAttribute('data-value', String(value));
+        rateLabel.textContent = value + '×';
+        video.playbackRate = value;
+        rateList.querySelectorAll('.ja-select-item').forEach(el => {
+            el.classList.toggle('ja-selected', el.getAttribute('data-value') === String(value));
+        });
+    }
+
+    function closeRateSelect() {
+        if (rate) rate.classList.remove('ja-open');
+        if (rateList) rateList.classList.remove('ja-visible');
+        if (rate) rate.setAttribute('aria-expanded', 'false');
+    }
+
+    if (rate && rateList) {
+        rate.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const open = rate.classList.toggle('ja-open');
+            rateList.classList.toggle('ja-visible', open);
+            rate.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        document.addEventListener('click', () => closeRateSelect());
+        if (rateItems && rateItems.length) {
+            rateItems.forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const val = Number(item.getAttribute('data-value'));
+                    setRateValue(val);
+                    closeRateSelect();
+                });
+            });
+        }
+    }
+
     pipBtn.addEventListener('click', async () => {
         try {
             if (document.pictureInPictureElement) {
@@ -1419,6 +1468,10 @@ function toggleTheme() {
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
     logPlayerEvent('theme_change', newTheme);
+    const msg = newTheme === 'dark' ? 'Motyw: ciemny' : 'Motyw: jasny';
+    if (typeof window.showNotification === 'function') {
+        window.showNotification(msg, 'info');
+    }
 }
 
 function updateThemeButton() {
@@ -1562,6 +1615,16 @@ function initializeUI() {
     document.getElementById('next-track').addEventListener('click', () => {
         playNextTrack();
     });
+
+    const autoplayCheckbox = document.getElementById('autoplay-next');
+    if (autoplayCheckbox) {
+        autoplayCheckbox.addEventListener('change', () => {
+            const isOn = autoplayCheckbox.checked;
+            const msg = isOn ? 'Autoplay włączony' : 'Autoplay wyłączony';
+            window.showNotification(msg, isOn ? 'success' : 'info');
+            addLogEntry(msg, isOn ? 'success' : 'info');
+        });
+    }
 
     // System log clear button
     document.getElementById('clear-log-btn').addEventListener('click', () => {
